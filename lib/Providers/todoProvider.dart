@@ -117,16 +117,35 @@ class TodoProvider extends ChangeNotifier {
     return response;
   }
 
-  taskTrigger(int id) {
+  taskTrigger(int id) async {
     log(taskes.toString());
-    for (int i = 0; i < taskes.length; i++) {
-      log(id.toString());
-      log(taskes[i].id.toString());
-      if (id == taskes[i].id) {
-        taskes[i].completed = !taskes[i].completed;
+    for (int i = 0; i < pagingController.itemList!.length; i++) {
+      log("from id: " + id.toString());
 
-        filteredList = taskes;
+      if (id == pagingController.itemList?[i].id) {
+        log(pagingController.itemList![i].id.toString());
+        taskes[i].completed = !taskes[i].completed;
+        pagingController.itemList?[i].completed = taskes[i].completed;
         notifyListeners();
+        try {
+          Map<String, dynamic> requestBody = {
+            'completed': taskes[i].completed,
+          };
+          final response = await http.put(
+            Uri.parse('https://dummyjson.com/todos/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          );
+          if (response.statusCode == 200) {
+            print('Todo with ID $id updated successfully');
+          } else {
+            throw Exception('Failed to update todo status');
+          }
+          filteredList = taskes;
+          break;
+        } catch (error) {
+          print(error);
+        }
       }
     }
   }
@@ -151,8 +170,7 @@ class TodoProvider extends ChangeNotifier {
 
       if (response.statusCode == 201) {
         final jsonResponse = jsonDecode(response.body);
-        filteredList.insert(0, CardModel.fromMap(jsonResponse));
-        pagingController.itemList?.insert(0, CardModel.fromMap(jsonResponse));
+        pagingController.itemList?.add(CardModel.fromMap(jsonResponse));
         notifyListeners();
       } else {
         log(response.body);
@@ -166,13 +184,25 @@ class TodoProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  deleteTask(int id) {
-    for (int i = 0; i < taskes.length; i++) {
-      if (id == taskes[i].id) {
-        taskes.removeAt(i);
-        filteredList = taskes;
+  Future<void> deleteTask(int id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('https://dummyjson.com/todos/$id'),
+      );
+      log(response.statusCode.toString());
+      if (response.statusCode == 200) {
+
+        pagingController.itemList?.removeWhere((task) => task.id == id);
+        filteredList.removeWhere((task) => task.id == id);
+        taskes.removeWhere((task) => task.id == id);
+        log(pagingController.itemList.toString());
         notifyListeners();
+        // pagingController.refresh();
+      } else {
+        throw Exception('Failed to delete task');
       }
+    } catch (error) {
+      print(error);
     }
   }
 
